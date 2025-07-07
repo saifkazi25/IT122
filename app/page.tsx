@@ -41,3 +41,7 @@ export default function ResultPage() {
     </Suspense>
   );
 }
+
+// ✅ Prevent static generation at build time
+export const dynamic = 'force-dynamic';
+
