@@ -1,14 +1,21 @@
+/* app/result/page.tsx */
 'use client'
 
-import { useSearchParams } from 'next/navigation'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState } from 'react'
 
-function ResultContent() {
-  const params = useSearchParams()
-  const imgUrl = params.get('img')
+export const dynamic = 'force-dynamic'   // skip pre-render
+// -- no useSearchParams() anywhere in this file --
+
+export default function ResultPage() {
+  const [imgUrl, setImgUrl] = useState<string | null>(null)
   const [answers, setAnswers] = useState<string[]>([])
 
   useEffect(() => {
+    // read ?img=... from current URL
+    const params = new URLSearchParams(window.location.search)
+    setImgUrl(params.get('img'))
+
+    // restore quiz answers from sessionStorage
     const stored = sessionStorage.getItem('quizAnswers')
     if (stored) setAnswers(JSON.parse(stored))
   }, [])
@@ -39,16 +46,5 @@ function ResultContent() {
   )
 }
 
-export default function ResultPage() {
-  return (
-    <Suspense fallback={<div className="p-4">Loading...</div>}>
-      <ResultContent />
-    </Suspense>
-  )
-}
-
-// ❗️Tells Next.js: Do NOT statically render this page
-export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
 
 
