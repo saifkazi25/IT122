@@ -1,53 +1,78 @@
 import { NextRequest, NextResponse } from 'next/server';
-    import Replicate from 'replicate';
+import Replicate from 'replicate';
 
-    const replicate = new Replicate({
-      auth: process.env.REPLICATE_API_TOKEN || ''
+const replicate = new Replicate({
+  auth: process.env.REPLICATE_API_TOKEN || '',
+});
+
+/* ---------- helpers ---------- */
+
+function buildPrompt(answers: string[]): string {
+  const [
+    place = 'a mystical realm',
+    power = 'arcane magic',
+    companions = 'mysterious allies',
+    role = 'hero',
+    vibe = 'epic',
+    goal = 'seek ultimate truth',
+    aesthetic = 'high-fantasy',
+  ] = answers;
+
+  return `
+A highly-detailed cinematic fantasy portrait.
+Setting • ${place} rendered in a ${aesthetic} style.
+The subject wields ${power} and is surrounded by ${companions}.
+Role • ${role}. Vibe • ${vibe}. Life mission • ${goal}.
+– Ultra-realistic, dramatic lighting, 8k resolution.
+`.trim();
+}
+
+async function uploadSelfie(base64: string): Promise<string> {
+  const res = await fetch('https://api.replicate.com/v1/upload', {
+    method: 'POST',
+    headers: {
+      Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      file: base64,
+      content_type: 'image/png',
+    }),
+  });
+
+  if (!res.ok) {
+    console.error('Failed to upload selfie', await res.text());
+    throw new Error('SELFIE_UPLOAD_FAILED');
+  }
+
+  const { url } = await res.json();
+  return url as string;
+}
+
+/* ---------- POST /api/generate ---------- */
+
+export async function POST(req: NextRequest) {
+  try {
+    const { answers, selfie } = await req.json();
+
+    const prompt = buildPrompt(answers);
+    const selfieUrl = await uploadSelfie(selfie);
+
+    const output = await replicate.run('fofr/facefusion:latest', {
+      input: {
+        target_image: selfieUrl, // user’s selfie (public URL)
+        prompt,                  // fantasy description
+        style: 'cinematic',
+      },
     });
 
-    function buildPrompt(answers: string[]) {
-      const [place, power, companions, role, vibe, goal, aesthetic] = answers;
-      return \`
-A highly detailed cinematic fantasy portrait.
-Setting: \${place} in a \${aesthetic} style.
-Subject wields \${power}, surrounded by \${companions}.
-Role: \${role}. Vibe: \${vibe}. Life mission: \${goal}.
-\`;
-    }
-
-    async function uploadImage(base64: string) {
-      // Replicate upload helper – returns a URL Replicate can read
-      const res = await fetch('https://api.replicate.com/v1/upload', {
-        method: 'POST',
-        headers: {
-          Authorization: \`Token \${process.env.REPLICATE_API_TOKEN}\`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ file: base64, content_type: 'image/png' })
-      });
-      const data = await res.json();
-      return data?.url as string;
-    }
-
-    export async function POST(req: NextRequest) {
-      const { answers, selfie } = await req.json();
-      const prompt = buildPrompt(answers);
-
-      // Upload the selfie and get a public URL
-      const selfieUrl = await uploadImage(selfie);
-
-      const output = await replicate.run(
-        "fofr/facefusion:latest",
-        {
-          input: {
-            target_image: selfieUrl,
-            prompt,
-            style: "cinematic"
-          }
-        }
-      );
-
-      // facefusion returns an array of image urls; pick first
-      const url = Array.isArray(output) ? output[0] : output as string;
-      return NextResponse.json({ url });
-    }
+    const imageUrl = Array.isArray(output) ? output[0] : (output as string);
+    return NextResponse.json({ url: imageUrl });
+  } catch (err) {
+    console.error('Generate route error', err);
+    return NextResponse.json(
+      { error: 'Failed to create fantasy image.' },
+      { status: 500 },
+    );
+  }
+}
