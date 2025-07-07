@@ -66,7 +66,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const imageUrl = Array.isArray(output) ? output[0] : (output as string);
+const imageUrl = Array.isArray(output)
+  ? output[0]
+  : (output as unknown as string);
     return NextResponse.json({ url: imageUrl });
   } catch (err) {
     console.error('Generate route error', err);
